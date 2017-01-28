@@ -151,6 +151,7 @@ class Analyze {
 	TH1F *hFitAmpVsChan;
 	TH1F *hFitShapeVsChan;
 	TH1F *hFitStartVsChan;
+	TProfile2D *pAvgFitSignalVsChan;
 	TProfile2D *pAvgFitResidualVsChan;
 
 	TProfile *pSinglePulseAmpVsChan;
@@ -232,7 +233,7 @@ Analyze::Analyze(std::string inputFileName){
 	pChStatusVsChan = new TProfile("pChStatusVsChan","",8256,0-0.5,8256-0.5);
 	pPulseStatusVsChan = new TProfile("pPulseStatusVsChan","",8256,0-0.5,8256-0.5);
 
-	pAvgSignalVsChan = new TProfile2D("pAvgSignalVsChan","",8256,0-0.5,8256-0.5,300,-10,20);
+	pAvgSignalVsChan = new TProfile2D("pAvgSignalVsChan","",8256,0-0.5,8256-0.5,500,-10,40);
 
 	hWidth = new TH1F("hWidth","",1000,0,10);
 	hSum = new TH1F("hSum","",2000,0,20000);
@@ -244,7 +245,8 @@ Analyze::Analyze(std::string inputFileName){
 	hFitAmpVsChan = new TH1F("hFitAmpVsChan","",8256,0-0.5,8256-0.5);
 	hFitShapeVsChan = new TH1F("hFitShapeVsChan","",8256,0-0.5,8256-0.5);
 	hFitStartVsChan = new TH1F("hFitStartVsChan","",8256,0-0.5,8256-0.5);
-	pAvgFitResidualVsChan = new TProfile2D("pAvgFitResidualVsChan","",8256,0-0.5,8256-0.5,300,-10,20);
+	//pAvgFitSignalVsChan = new TProfile2D("pAvgFitSignalVsChan","",8256,0-0.5,8256-0.5,500,-10,40);
+	pAvgFitResidualVsChan = new TProfile2D("pAvgFitResidualVsChan","",8256,0-0.5,8256-0.5,500,-10,40);
 
 	pSinglePulseAmpVsChan = new TProfile("pSinglePulseAmpVsChan","",8256,0-0.5,8256-0.5);
 	hAvgSignalPulseHeightVsChan = new TH1F("hAvgSignalPulseHeightVsChan","",8256,0-0.5,8256-0.5);
@@ -301,10 +303,10 @@ void Analyze::doAnalysis(){
 	analyzeChannel(1200);
 	analyzeChannel(3600);
 	analyzeChannel(6200);
-	return;
 	*/
-
+	
 	for(unsigned int ch = 0 ; ch < constant_numChan ; ch++ ){
+	//for(unsigned int ch = 2400 ; ch < 2450 ; ch++ ){
 		if( ch % 100 == 0 ) std::cout << "Channel " << ch << std::endl;
 
 		std::clock_t start;
@@ -317,6 +319,7 @@ void Analyze::doAnalysis(){
 		if( ch > constant_maxNumberChannels )
 			break; 
 	}
+	
 
     	gOut->Cd("");
 	hMean->Write();
@@ -348,6 +351,7 @@ void Analyze::doAnalysis(){
 	hFitAmpVsChan->Write();
 	hFitShapeVsChan->Write();
 	hFitStartVsChan->Write();
+	//pAvgFitSignalVsChan->Write();
 	pAvgFitResidualVsChan->Write();
 
 	pSinglePulseAmpVsChan->Write();
@@ -493,11 +497,11 @@ void Analyze::analyzeChannel(unsigned int chan){
 
 	doChannelFit(chan);
 
-	//getAvgFitResidual();
+	getAvgFitResidual();
 
 	//test outcome of fit here
 
-	//fillOutputTree();
+	fillOutputTree();
 
 	//getQRes();
 	
@@ -1109,6 +1113,7 @@ void Analyze::getAvgFitResidual(){
 				double time = sample*SAMP_PERIOD;
 				double fitVal = -10000;
 				fitSig->getSignalValue(time, base, startTime, shape, amp, fitVal);
+				//pAvgFitSignalVsChan->Fill(fChan, sample - startSample , pulseWf->at(s) - base );
 				pAvgFitResidualVsChan->Fill(fChan, sample - startSample , pulseWf->at(s) - fitVal );
 				//gCh->SetPoint( gCh->GetN(), sample - startSample , pulseWf->at(s) - fitVal );
 				//gCh->SetPoint( gCh->GetN(), sample - startSample , pulseWf->at(s) );
