@@ -97,7 +97,7 @@ class Analyze {
 	unsigned int constant_maxNumberEventsProcessed = 50;
 	bool constant_showFitInfo = 0;
 	int constant_maxNumberChannels = 10000;
-	bool constant_printResults = 1;
+	bool constant_printResults = 0;
 	bool constant_doDrawAvgWaveform = 0;
 	double constant_ampToHeightFactor = 0.0988165;
 	bool constant_fixStartTimes = 1;
@@ -109,7 +109,6 @@ class Analyze {
 
 	double chAvgMean;
 	double chAvgMaxValue;
-	double chAvgRms;
 	double chAvgSum;
 	double chAvgRiseTime;
 
@@ -119,8 +118,8 @@ class Analyze {
 	//histograms
 	TH1F *hMean;
   	TH1F *hRms;
-	TH1F *hBaseVsChan;
-	TH1F *hRmsVsChan;
+	TProfile *pBaseVsChan;
+	TProfile *pRmsVsChan;
 
 	TH1F *hPulseRms;
 	TH1F *hPulseRmsU;
@@ -139,7 +138,6 @@ class Analyze {
 	TProfile *pPulseStatusVsChan;
 
 	TProfile2D *pAvgSignalVsChan;
-	TH1F *hAvgSignalPulseHeightVsChan;
 
 	TH1F *hWidth;
 	TH1F *hSum;
@@ -147,10 +145,10 @@ class Analyze {
 	TProfile *pWidthVsChan;
 	TProfile *pSumVsChan;
 
-	TH1F *hFitPulseHeightVsChan;
-	TH1F *hFitAmpVsChan;
-	TH1F *hFitShapeVsChan;
-	TH1F *hFitStartVsChan;
+	TProfile *pFitPulseHeightVsChan;
+	TProfile *pFitAmpVsChan;
+	TProfile *pFitShapeVsChan;
+	TProfile *pFitStartVsChan;
 	TProfile2D *pAvgFitSignalVsChan;
 	TProfile2D *pAvgFitResidualVsChan;
 
@@ -160,10 +158,9 @@ class Analyze {
   	TTree *tr_eventTime;
 
 	//output pulse tree
-  	unsigned short oRun, oSubrun, oChan;
+  	unsigned short oRun, oSubrun, oChan, oEvent;
 	int oStatus;
-  	float oBase, oShape, oAmp, oBaseErr, oShapeErr, oAmpErr;
-	std::vector<double> oStartTimes;
+  	float oBase, oRms, oSum, oHeight, oShape, oAmp, oBaseErr, oShapeErr, oAmpErr;
   	TTree *tr_out;
 };
 
@@ -214,8 +211,8 @@ Analyze::Analyze(std::string inputFileName){
 	//initialize histograms
 	hMean = new TH1F("hMean","",4100,0-0.5,4100-0.5);
 	hRms = new TH1F("hRms","",2000,0,200);
-	hBaseVsChan = new TH1F("hBaseVsChan","",8256,0-0.5,8256-0.5);
-	hRmsVsChan = new TH1F("hRmsVsChan","",8256,0-0.5,8256-0.5);
+	pBaseVsChan = new TProfile("pBaseVsChan","",8256,0-0.5,8256-0.5);
+	pRmsVsChan = new TProfile("pRmsVsChan","",8256,0-0.5,8256-0.5);
 
 	hPulseRms = new TH1F("hPulseRms","",1000,0,100);
 	hPulseRmsU = new TH1F("hPulseRmsU","",1000,0,100);
@@ -241,29 +238,31 @@ Analyze::Analyze(std::string inputFileName){
 	pWidthVsChan = new TProfile("pWidthVsChan","",8256,0-0.5,8256-0.5);
 	pSumVsChan = new TProfile("pSumVsChan","",8256,0-0.5,8256-0.5);
 
-	hFitPulseHeightVsChan = new TH1F("hFitPulseHeightVsChan","",8256,0-0.5,8256-0.5);
-	hFitAmpVsChan = new TH1F("hFitAmpVsChan","",8256,0-0.5,8256-0.5);
-	hFitShapeVsChan = new TH1F("hFitShapeVsChan","",8256,0-0.5,8256-0.5);
-	hFitStartVsChan = new TH1F("hFitStartVsChan","",8256,0-0.5,8256-0.5);
+	pFitPulseHeightVsChan = new TProfile("pFitPulseHeightVsChan","",8256,0-0.5,8256-0.5);
+	pFitAmpVsChan = new TProfile("pFitAmpVsChan","",8256,0-0.5,8256-0.5);
+	pFitShapeVsChan = new TProfile("pFitShapeVsChan","",8256,0-0.5,8256-0.5);
+	pFitStartVsChan = new TProfile("pFitStartVsChan","",8256,0-0.5,8256-0.5);
 	//pAvgFitSignalVsChan = new TProfile2D("pAvgFitSignalVsChan","",8256,0-0.5,8256-0.5,500,-10,40);
 	pAvgFitResidualVsChan = new TProfile2D("pAvgFitResidualVsChan","",8256,0-0.5,8256-0.5,500,-10,40);
 
 	pSinglePulseAmpVsChan = new TProfile("pSinglePulseAmpVsChan","",8256,0-0.5,8256-0.5);
-	hAvgSignalPulseHeightVsChan = new TH1F("hAvgSignalPulseHeightVsChan","",8256,0-0.5,8256-0.5);
 
 	//make output tree(s)
 	tr_out = new TTree( "tr_out" , "tr_out" );
   	tr_out->Branch("run", &oRun, "run/s");
   	tr_out->Branch("subrun", &oSubrun, "subrun/s");
   	tr_out->Branch("chan", &oChan, "chan/s");
+	tr_out->Branch("event", &oEvent, "event/s");
 	tr_out->Branch("status", &oStatus, "status/I");
   	tr_out->Branch("base", &oBase, "base/F");
+	tr_out->Branch("rms", &oRms, "rms/F");
+	tr_out->Branch("sum", &oSum, "sum/F");
+	tr_out->Branch("height", &oHeight, "height/F");
   	tr_out->Branch("shape", &oShape, "shape/F");
   	tr_out->Branch("amp", &oAmp, "amp/F");
   	tr_out->Branch("baseErr", &oBaseErr, "baseErr/F");
   	tr_out->Branch("shapeErr", &oShapeErr, "shapeErr/F");
   	tr_out->Branch("ampErr", &oAmpErr, "ampErr/F");
-	tr_out->Branch("startTimes", "vector<double>", &oStartTimes);
 }
 
 int Analyze::processFileName(std::string inputFileName, std::string &baseFileName){
@@ -319,13 +318,12 @@ void Analyze::doAnalysis(){
 		if( ch > constant_maxNumberChannels )
 			break; 
 	}
-	
 
     	gOut->Cd("");
 	hMean->Write();
 	hRms->Write();
-	hBaseVsChan->Write();
-	hRmsVsChan->Write();
+	pBaseVsChan->Write();
+	pRmsVsChan->Write();
 
 	hPulseRms->Write();
 	hPulseRmsU->Write();
@@ -341,16 +339,15 @@ void Analyze::doAnalysis(){
 	pPulseStatusVsChan->Write();
 
 	pAvgSignalVsChan->Write();
-	hAvgSignalPulseHeightVsChan->Write();
-	
+
 	pPulseHeightVsChan->Write();
 	pWidthVsChan->Write();
 	pSumVsChan->Write();
 
-	hFitPulseHeightVsChan->Write();
-	hFitAmpVsChan->Write();
-	hFitShapeVsChan->Write();
-	hFitStartVsChan->Write();
+	pFitPulseHeightVsChan->Write();
+	pFitAmpVsChan->Write();
+	pFitShapeVsChan->Write();
+	pFitStartVsChan->Write();
 	//pAvgFitSignalVsChan->Write();
 	pAvgFitResidualVsChan->Write();
 
@@ -612,8 +609,8 @@ void Analyze::getChannelBaseline(){
 	chRms = hSamp->GetRMS();
 	hMean->Fill(chBase);
 	hRms->Fill(chRms);
-	hBaseVsChan->SetBinContent(fChan+1, chBase);
-	hRmsVsChan->SetBinContent(fChan+1, chRms);
+	pBaseVsChan->Fill(fChan, chBase);
+	pRmsVsChan->Fill(fChan+1, chRms);
 
 	if( 0 ){
 		std::cout << chAvgMean << "\t" << chBase << std::endl;
@@ -761,15 +758,6 @@ void Analyze::getAvgPulseShape(){
 		}
 	}
 
-	//get pulse height
-	double maxValue = pAvgSignalVsChan->GetBinContent(fChan+1, 1);
-	for( int s = 0 ; s < pAvgSignalVsChan->GetNbinsY() ; s++ ){
-		if( pAvgSignalVsChan->GetBinContent(fChan+1, s+1) > maxValue )
-			maxValue = pAvgSignalVsChan->GetBinContent(fChan+1, s+1);
-	}
-	hAvgSignalPulseHeightVsChan->SetBinContent(fChan+1, maxValue);
-	hAvgSignalPulseHeightVsChan->SetBinError(fChan+1,0);
-
 	if( constant_doDrawAvgWaveform ){
 
 		c0->Clear();
@@ -811,6 +799,7 @@ void Analyze::doSimpleMeasurement(){
 			if( fSample + s > fStartSample - 2 && fSample + s < fStartSample + 20 )  
 				sum += fWf->at(s) - chBase;
 		}
+		chAvgSum = sum;
 		hSum->Fill( sum );
 		pSumVsChan->Fill(fChan, sum);
 		
@@ -950,17 +939,17 @@ void Analyze::doChannelFit(unsigned int chan){
 	if( fitResponse->fitVals.size() < 6 || fitResponse->fitValErrs.size() < 6 )
 		return;
 
-	hFitPulseHeightVsChan->SetBinContent(chan + 1,fitResponse->fitVals.at(0)*constant_ampToHeightFactor );
-	hFitPulseHeightVsChan->SetBinError(chan + 1,fitResponse->fitValErrs.at(0)*constant_ampToHeightFactor );
+	pFitPulseHeightVsChan->Fill(chan,fitResponse->fitVals.at(0)*constant_ampToHeightFactor );
+	//pFitPulseHeightVsChan->Fill(chan,fitResponse->fitValErrs.at(0)*constant_ampToHeightFactor );
 
-	hFitAmpVsChan->SetBinContent(chan + 1,fitResponse->fitVals.at(0) );
-	hFitAmpVsChan->SetBinError(chan + 1,fitResponse->fitValErrs.at(0) );
+	pFitAmpVsChan->Fill(chan,fitResponse->fitVals.at(0) );
+	//pFitAmpVsChan->Fill(chan,fitResponse->fitValErrs.at(0) );
 
-	hFitShapeVsChan->SetBinContent(chan + 1,fitResponse->fitVals.at(1) );
-	hFitShapeVsChan->SetBinError(chan + 1,fitResponse->fitValErrs.at(1) );
+	pFitShapeVsChan->Fill(chan,fitResponse->fitVals.at(1) );
+	//pFitShapeVsChan->Fill(chan,fitResponse->fitValErrs.at(1) );
 
-	hFitStartVsChan->SetBinContent(chan + 1,fitResponse->fitVals.at(5) );
-	hFitStartVsChan->SetBinError(chan + 1,fitResponse->fitValErrs.at(5) );
+	pFitStartVsChan->Fill(chan,fitResponse->fitVals.at(5) );
+	//pFitStartVsChan->Fill(chan,fitResponse->fitValErrs.at(5) );
 
 	if(constant_printResults){
 		std::cout << std::endl;
@@ -1159,18 +1148,17 @@ void Analyze::fillOutputTree(){
 	oRun = fRun;
 	oSubrun = fSubrun;
 	oChan = fChan;
+	oEvent = fEvent;
 	oStatus = fitResponse->status;
 	oBase = fitResponse->fitVals.at(2);
+	oRms = chRms;
+	oSum = chAvgSum;
+	oHeight = chAvgMaxValue-chBase;
 	oShape = fitResponse->fitVals.at(1);
 	oAmp = fitResponse->fitVals.at(0);
 	oBaseErr = fitResponse->fitValErrs.at(2);
 	oShapeErr = fitResponse->fitValErrs.at(1);
 	oAmpErr = fitResponse->fitValErrs.at(0);
-
-	oStartTimes.clear();
-	for( unsigned int ev = 0 ; ev < numEvents ; ev++ ){
-		oStartTimes.push_back( fitResponse->fitVals.at( 5+ ev ) );
-	}
 
 	tr_out->Fill();
 
@@ -1242,7 +1230,7 @@ void Analyze::doSinglePulseFit(unsigned int eventNum, unsigned int firstNum){
 	fitResponse_singlePulse->fixFitVars.push_back(4);
 	fitResponse_singlePulse->fixFitVars.push_back(5);
 
-	fitResponse_singlePulse->setSampleError( chAvgRms );
+	fitResponse_singlePulse->setSampleError( chRms );
 	fitResponse_singlePulse->showOutput = 1;
 	fitResponse_singlePulse->setBaseFitRange( constant_baseFitRange );
 	fitResponse_singlePulse->setPulseFitRange( constant_pulseFitRange );
