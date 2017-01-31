@@ -303,7 +303,7 @@ void Analyze::doAnalysis(){
 	analyzeChannel(3600);
 	analyzeChannel(6200);
 	*/
-	
+
 	for(unsigned int ch = 0 ; ch < constant_numChan ; ch++ ){
 	//for(unsigned int ch = 2400 ; ch < 2450 ; ch++ ){
 		if( ch % 100 == 0 ) std::cout << "Channel " << ch << std::endl;
@@ -1220,8 +1220,10 @@ void Analyze::doSinglePulseFit(unsigned int eventNum, unsigned int firstNum){
 
 	fitResponse_singlePulse->clearData();	
 
-	double startTime = fitResponse->fitVals.at(5+eventNum) + fNum*period + offset;
+	//double startTime = fitResponse->fitVals.at(5+eventNum) + fNum*period + offset;
 	//fitResponse_singlePulse->addData(fEvent, 1, fNum, startTime, fSample, *fWf, 1);
+	double startSample = fStartSample;
+	fitResponse_singlePulse->addData(fEvent, 1, evPulserStartSamples.at(eventNum)*SAMP_PERIOD, fNum, fStartSample*SAMP_PERIOD, fSample, *fWf, 1);
 
 	//fix everything except pulse amplitude
 	fitResponse_singlePulse->fixFitVars.push_back(1);
@@ -1231,14 +1233,14 @@ void Analyze::doSinglePulseFit(unsigned int eventNum, unsigned int firstNum){
 	fitResponse_singlePulse->fixFitVars.push_back(5);
 
 	fitResponse_singlePulse->setSampleError( chRms );
-	fitResponse_singlePulse->showOutput = 1;
+	fitResponse_singlePulse->showOutput = 0;
 	fitResponse_singlePulse->setBaseFitRange( constant_baseFitRange );
 	fitResponse_singlePulse->setPulseFitRange( constant_pulseFitRange );
 	fitResponse_singlePulse->doFit( amp, shape, base, period);
 
 	pSinglePulseAmpVsChan->Fill(fChan, fitResponse_singlePulse->fitVals.at(0) );
 
-	drawFit_singlePulse();
+	//drawFit_singlePulse();
 
 	return;
 }
@@ -1258,7 +1260,8 @@ void Analyze::drawFit_singlePulse(){
 			double sample = fSample + s + step/10.;
 			double time = sample*SAMP_PERIOD;
 			double fitVal = -10000;
-			fitSig->getSignalValue(time, base_singlePulse, startTime_singlePulse,shape_singlePulse, amp_singlePulse, fitVal);
+			double startTime = period_singlePulse*fNum + startTime_singlePulse+offset_singlePulse;
+			fitSig->getSignalValue(time, base_singlePulse, startTime,shape_singlePulse, amp_singlePulse, fitVal);
 			gFit->SetPoint( gFit->GetN(), sample, fitVal );
 		}
 	}
@@ -1282,8 +1285,8 @@ void Analyze::drawFit_singlePulse(){
 		
 		c0->Update();
 		//sleep(0.1);
-		char ct;
-		std::cin >> ct;
+		//char ct;
+		//std::cin >> ct;
 	}
 	return;
 }
