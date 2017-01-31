@@ -63,6 +63,7 @@ class Analyze {
 	void fillOutputTree();
 
 	//Files
+	std::string fileName;
 	TFile* inputFile;
 	TFile *gOut;
 
@@ -172,7 +173,7 @@ Analyze::Analyze(std::string inputFileName){
 		gSystem->Exit(0);
 	}
 
-	inputFile = new TFile(inputFileName.c_str());
+	inputFile = new TFile(inputFileName.c_str(),"R" );
 	if (inputFile->IsZombie()) {
 		std::cout << "Error opening input file" << std::endl;
 		gSystem->Exit(0);
@@ -182,6 +183,7 @@ Analyze::Analyze(std::string inputFileName){
 		std::cout << "Error opening input file" << std::endl;
 		gSystem->Exit(0);
 	}
+	
 
 	//make output file
   	std::string outputFileName = "output_processGetPulserSignals.root";
@@ -246,6 +248,8 @@ Analyze::Analyze(std::string inputFileName){
 	pAvgFitResidualVsChan = new TProfile2D("pAvgFitResidualVsChan","",8256,0-0.5,8256-0.5,500,-10,40);
 
 	pSinglePulseAmpVsChan = new TProfile("pSinglePulseAmpVsChan","",8256,0-0.5,8256-0.5);
+
+	tr_fit = NULL;
 
 	//make output tree(s)
 	tr_out = new TTree( "tr_out" , "tr_out" );
@@ -510,8 +514,11 @@ void Analyze::analyzeChannel(unsigned int chan){
 
 void Analyze::initializeTree( unsigned int chan ){
 	//initialize tree branches
+	if( tr_fit != NULL )
+		tr_fit->Delete();
+
 	std::string title = "GetPulserSignals/tr_" + to_string( chan );
-	tr_fit = (TTree*) inputFile->Get( title.c_str() );
+	inputFile->GetObject( title.c_str(), tr_fit );
 	if( !tr_fit ){
 		std::cout << "Error opening input file tree, exiting" << std::endl;
 		gSystem->Exit(0);
@@ -561,6 +568,7 @@ void Analyze::getChannelBaseline(){
 	tr_fit->GetEntry(0);
 
 	hSamp->Reset();
+
 	for(unsigned int entry = 0 ; entry<numEntries; entry++) { 
 		tr_fit->GetEntry(entry);
 
