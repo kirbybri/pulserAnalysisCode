@@ -6,7 +6,7 @@ FeElecResponse::FeElecResponse(){
 	//load response function into vector
 	sigNum = 4000;
 	sigPeriod = 0.5/200.;
-	for(int i = 0 ; i < sigNum ; i++){
+	for(unsigned int i = 0 ; i < sigNum ; i++){
 		double time = i*sigPeriod; //us
 		double val = 0;
 		getSignalValue(time, 0., 0., 1., 1., val); //"unit" response

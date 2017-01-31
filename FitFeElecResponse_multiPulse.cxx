@@ -1,6 +1,4 @@
 #include "FeElecResponse.hxx"
-//#include "TCanvas.h"
-//#include "TGraph.h"
 
 using namespace std;
 
@@ -28,7 +26,7 @@ void FitFeElecResponse_multiPulse::clearData(){
 }
 
 void FitFeElecResponse_multiPulse::addData(unsigned int event, bool isGoodEvent, double eventTime, unsigned short num, float startTime, unsigned short firstSample, 
-const std::vector<unsigned short>& wf, bool isGood){
+const std::vector<unsigned short>& wf, const std::vector<bool>& wfQuality, bool isGood){
 	if( eventData.size() == 0 ){
 		Events evTemp;
 		evTemp.eventNumber = event;
@@ -49,6 +47,7 @@ const std::vector<unsigned short>& wf, bool isGood){
 	pTemp.startTime = startTime;
 	pTemp.firstSample = firstSample;
 	pTemp.wf = wf;
+	pTemp.wfQuality = wfQuality;
 	pTemp.isGood = isGood;
 	eventData.back().pulseData.push_back(pTemp);
 	numPulses++;
@@ -56,7 +55,7 @@ const std::vector<unsigned short>& wf, bool isGood){
 }
 
 //wrapper function for TMinuit
-void FitFeElecResponse_multiPulse::doFit(double initAmp, double initShape, double initBase, double initPeriod){
+void FitFeElecResponse_multiPulse::doFit(double initAmp, double initShape, double initBase, double initPeriod, double initOffset){
 
   if( numPulses == 0 )
 	return;
@@ -66,6 +65,7 @@ void FitFeElecResponse_multiPulse::doFit(double initAmp, double initShape, doubl
 
   //unsigned int numParameters = 4 + eventData.size();
   unsigned int numParameters = 5 + eventData.size();
+  //std::unique_ptr<TMinuit> minimizer (new TMinuit(numParameters) );
   TMinuit *minimizer = new TMinuit(numParameters);
 
   //Set print level , -1 = suppress, 0 = info
@@ -79,7 +79,7 @@ void FitFeElecResponse_multiPulse::doFit(double initAmp, double initShape, doubl
   minimizer->DefineParameter(1, "Shape", initShape, initShape/1000.,0,0);
   minimizer->DefineParameter(2, "Base", initBase, initBase/1000.,0,0);
   minimizer->DefineParameter(3, "Period", initPeriod, 0.01,0,0);
-  minimizer->DefineParameter(4, "Offset", -0.68, 0.02,0,0);
+  minimizer->DefineParameter(4, "Offset", initOffset, 0.02,0,0);
 
   //event start fit
   for(unsigned int ev = 0 ; ev < eventData.size() ; ev++ ){
@@ -92,7 +92,7 @@ void FitFeElecResponse_multiPulse::doFit(double initAmp, double initShape, doubl
   }
 
   //optionally fix parameter 
-  for( int i = 0 ; i <  fixFitVars.size() ; i++ ){
+  for( unsigned int i = 0 ; i <  fixFitVars.size() ; i++ ){
 	if( fixFitVars.at(i) < numParameters )
   		minimizer->FixParameter( fixFitVars.at(i) );
   }
@@ -141,7 +141,7 @@ void FitFeElecResponse_multiPulse::doFit(double initAmp, double initShape, doubl
   
   fitVals.clear();
   fitValErrs.clear();
-  for(int i = 0 ; i < numParameters ; i++ ){
+  for(unsigned int i = 0 ; i < numParameters ; i++ ){
 	double fitVal, fitValErr;
 	minimizer->GetParameter(i, fitVal, fitValErr);
 	fitVals.push_back( fitVal );
@@ -181,7 +181,6 @@ void FitFeElecResponse_multiPulse::setBaseFitRange(double range){
 //likelihood calc - note not included in class
 void calcLnL(double par[], double& result){
   double diffSq = 0;
-  double cumul = 0;
   double dataX,fitY;
   unsigned short dataY;
 
@@ -209,8 +208,8 @@ void calcLnL(double par[], double& result){
 		double start = par[3]*eventData[ev].pulseData[p].num + par[5+ev] + par[4];
 		//double minFitTime =  par[3]*eventData[ev].pulseData[p].num + eventData[ev].pulseData[p].startTime - baseFitRange;
 		//double maxFitTime =  par[3]*eventData[ev].pulseData[p].num + eventData[ev].pulseData[p].startTime + pulseFitRange;
-		double minFitTime =  eventData[ev].pulseData[p].startTime - baseFitRange;
-		double maxFitTime =  eventData[ev].pulseData[p].startTime + pulseFitRange;
+		//double minFitTime =  eventData[ev].pulseData[p].startTime - baseFitRange;
+		//double maxFitTime =  eventData[ev].pulseData[p].startTime + pulseFitRange;
 	
 		//std::cout << amp << "\t" << shape << "\t" << base << std::endl;
 		//gData->Set(0);
@@ -219,10 +218,12 @@ void calcLnL(double par[], double& result){
 			dataX = eventData[ev].pulseData[p].firstSample + s;
 	
 			//only allow fit to include certain part of pulse waveform
-			if( dataX*SAMP_PERIOD < minFitTime )
+			//if( dataX*SAMP_PERIOD < minFitTime )
+			//	continue;
+			//if( dataX*SAMP_PERIOD > maxFitTime )
+			//	break;
+			if( eventData[ev].pulseData[p].wfQuality[s] == 0 )
 				continue;
-			if( dataX*SAMP_PERIOD > maxFitTime )
-				break;
 
 			dataY = eventData[ev].pulseData[p].wf[s];
 
@@ -253,6 +254,10 @@ void calcLnL(double par[], double& result){
 		
   	}//end of pulse loop
   }//end of event loop
+
+  //delete cFit;
+  //delete gData;
+  //delete gFit;
 
   //calculate value to minimize
   result = -0.5*diffSq;

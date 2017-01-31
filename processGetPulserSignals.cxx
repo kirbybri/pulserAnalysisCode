@@ -58,7 +58,7 @@ class Analyze {
 	void getAvgFitResidual();
 
 	void getQRes();
-	void doSinglePulseFit(unsigned int eventNum, unsigned int firstNum);
+	void doSinglePulseFit(unsigned int eventNum);
 	void drawFit_singlePulse();
 	void fillOutputTree();
 
@@ -91,12 +91,12 @@ class Analyze {
 	FeElecResponse *fitSig;//drawing purposes only
 	
 	//constants
-	int constant_numChan = 8256;
+	unsigned int constant_numChan = 8256;
 	double constant_baseFitRange = 2.;
 	double constant_pulseFitRange = 4.0;
 	unsigned int constant_maxNumberEventsProcessed = 50;
 	bool constant_showFitInfo = 0;
-	int constant_maxNumberChannels = 10000;
+	unsigned int constant_maxNumberChannels = 10000;
 	bool constant_printResults = 0;
 	bool constant_doDrawAvgWaveform = 0;
 	double constant_ampToHeightFactor = 0.0988165;
@@ -308,8 +308,8 @@ void Analyze::doAnalysis(){
 	//for(unsigned int ch = 2400 ; ch < 2450 ; ch++ ){
 		if( ch % 100 == 0 ) std::cout << "Channel " << ch << std::endl;
 
-		std::clock_t start;
-	        start = std::clock();
+		//std::clock_t start;
+	        //start = std::clock();
 	
 		analyzeChannel(ch);
 
@@ -566,7 +566,7 @@ void Analyze::getChannelBaseline(){
 
 		gCh->Set(0);
 
-		for( int s = 0 ; s < fWf->size() ; s++ ){
+		for( unsigned int s = 0 ; s < fWf->size() ; s++ ){
 			double sample = fSample + s;
 			if( sample < fStartSample - 4 ){
 				gCh->SetPoint(gCh->GetN() , sample , fWf->at(s) );
@@ -590,7 +590,7 @@ void Analyze::getChannelBaseline(){
 
 	//extract baseline mean from pedestal sample distribution
 	hSamp->GetXaxis()->SetRangeUser(0.5,4094.5);
-	double histMean = hSamp->GetMean();
+	//double histMean = hSamp->GetMean();
 	double histPeak = hSamp->GetBinCenter( hSamp->GetMaximumBin() );
 	hSamp->GetXaxis()->SetRangeUser(histPeak-50,histPeak+50.);
 	double histRms = hSamp->GetRMS();
@@ -632,7 +632,7 @@ void Analyze::measurePulseDist(){
 	tr_fit->GetEntry(0);
 
 	//loop over channel pulses, measure properties
-	int currEvent = -1;
+	unsigned int currEvent = fEvent;
 	int numEvent = 0;
 	for(unsigned int entry = 0 ; entry<numEntries; entry++) { 
 		tr_fit->GetEntry(entry);
@@ -702,7 +702,7 @@ void Analyze::measureChannelDist(){
 
 	hMaxValue->GetXaxis()->SetRangeUser(0.5,4094.5);
 	double histMean = hMaxValue->GetMean();
-	double histPeak = hMaxValue->GetBinCenter( hMaxValue->GetMaximumBin() );
+	//double histPeak = hMaxValue->GetBinCenter( hMaxValue->GetMaximumBin() );
 	hMaxValue->GetXaxis()->SetRangeUser(histMean-50,histMean+50.);
 
 	//chAvgMaxValue = chAvgMaxValue / numPulse;
@@ -735,15 +735,13 @@ void Analyze::getAvgPulseShape(){
 	gCh->Set(0);
 	gCh->Clear();
 
-	int currEvent = -1;
-	int eventNum = -1;
-	int firstNum = 0;
+	unsigned int currEvent = fEvent;
+	int eventNum = 0;
 	for(unsigned int entry = 0 ; entry<numEntries; entry++) { 
 		tr_fit->GetEntry(entry);
 		if( fEvent != currEvent ){
 			currEvent = fEvent;
 			eventNum++;
-			firstNum = fNum;
 		}
 		
 		//if(0 && !getPulseStatus() )
@@ -751,7 +749,7 @@ void Analyze::getAvgPulseShape(){
 		if( evPulserStartSamplesErrors.at(eventNum) > 0.1 ) continue;
 
 		double startSample = evPulserStartSamples.at(eventNum) + fNum*avgPulserPeriod;
-		for( int s = 0 ; s < fWf->size() ; s++ ){
+		for( unsigned int s = 0 ; s < fWf->size() ; s++ ){
 			if( constant_doDrawAvgWaveform )
 				gCh->SetPoint( gCh->GetN(), fSample + s - startSample , fWf->at(s) );
 			pAvgSignalVsChan->Fill(fChan, fSample + s - startSample , fWf->at(s) - chBase );
@@ -794,7 +792,7 @@ void Analyze::doSimpleMeasurement(){
 
 		//integral
 		double sum = 0;
-		for( int s = 0 ; s < fWf->size() ; s++ ){
+		for( unsigned int s = 0 ; s < fWf->size() ; s++ ){
 			//if( fSample + s > fStartSample - 2 )
 			if( fSample + s > fStartSample - 2 && fSample + s < fStartSample + 20 )  
 				sum += fWf->at(s) - chBase;
@@ -809,11 +807,18 @@ void Analyze::doSimpleMeasurement(){
 		double threshold = 0.5*(chAvgMaxValue-chBase) + chBase;
 		if( fMaxValue < threshold )
 			continue;
+		if(  fMaxSample - 10 < 0 )
+			continue;
+		size_t maxSize = fMaxSample + 10 + 1;
+		if( maxSize >= fWf->size() )
+			continue;
+		unsigned int lowerBound = fMaxSample - 10;
+		unsigned int upperBound = fMaxSample + 10;
 
 		//rising edge
-		for( int samp = fMaxSample - 1 ; samp > fMaxSample - 10 ; samp-- ){
-			int s = samp - fSample;
-			if( s < 0 || s >= fWf->size()) break;
+		for( unsigned int samp = fMaxSample - 1 ; samp > lowerBound ; samp-- ){
+			unsigned int s = samp - fSample;
+			if( s >= fWf->size()) break;
 			if( fWf->at(s) <= threshold && fWf->at(s+1) > threshold ){
 				double slope = fWf->at(s+1) - fWf->at(s);
 				if( slope <= 0 ) break;
@@ -825,9 +830,9 @@ void Analyze::doSimpleMeasurement(){
 			continue;
 
 		//falling edge
-		for( int samp = fMaxSample ; samp < fMaxSample + 10 ; samp++ ){
-			int s = samp - fSample;
-			if( s < 0 || s >= fWf->size()-1) break;
+		for( unsigned int samp = fMaxSample ; samp < upperBound ; samp++ ){
+			unsigned int s = samp - fSample;
+			if( s >= fWf->size()-1) break;
 			if( fWf->at(s) >= threshold && fWf->at(s+1) < threshold ){
 				double slope = fWf->at(s+1) - fWf->at(s);
 				if( slope >= 0 ) break;
@@ -861,7 +866,7 @@ void Analyze::doSimpleMeasurement(){
 	if(0){
 		//extract integral mean from integral distribution
 		hSum->GetXaxis()->SetRangeUser(0.5,20000-0.5);
-		double histMean = hSum->GetMean();
+		//double histMean = hSum->GetMean();
 		double histPeak = hSum->GetBinCenter( hSum->GetMaximumBin() );
 		double histRms = hSamp->GetRMS();
 		if( histRms < 100 )
@@ -890,15 +895,13 @@ void Analyze::getPulses(){
 
 	fitResponse->clearData();
 
-	int currEvent = -1;
-	int eventNum = -1;
-	int firstNum = 0;
+	unsigned int currEvent = fEvent;
+	unsigned int eventNum = 0;
 	for(unsigned int entry = 0 ; entry<numEntries; entry++) { 
 		tr_fit->GetEntry(entry);
 		if( fEvent != currEvent ){
 			currEvent = fEvent;
 			eventNum++;
-			firstNum = fNum;
 		}
 		if( eventNum >= constant_maxNumberEventsProcessed )
 			break;
@@ -909,12 +912,34 @@ void Analyze::getPulses(){
 		bool isGoodEvent = 1;
 		if( evPulserStartSamplesErrors.at(eventNum) > 0.1 )
 			isGoodEvent = 0;
-		//double startSample = evPulserStartSamples.at(eventNum);
-		double startSample = fStartSample;
-		fitResponse->addData(fEvent, isGoodEvent, evPulserStartSamples.at(eventNum)*SAMP_PERIOD, fNum, fStartSample*SAMP_PERIOD, fSample, *fWf, isGood);
+
+		//get waveform section
+		std::vector<unsigned short> wfData;
+		std::vector<bool> wfDataQuality;
+		double minFitTime =  fStartSample*SAMP_PERIOD - constant_baseFitRange;
+		double maxFitTime =  fStartSample*SAMP_PERIOD + constant_pulseFitRange;
+		bool foundFirstSample = 0;
+		unsigned int firstSample = fSample;
+		for( unsigned int s = 0 ; s < fWf->size() ; s++ ){
+			unsigned int sampleNum = fSample + s;
+			//only allow fit to include certain part of pulse waveform
+			bool isGoodSample = 1;
+			if( sampleNum*SAMP_PERIOD < minFitTime )
+				isGoodSample = 0;
+			if( sampleNum*SAMP_PERIOD > maxFitTime )
+				isGoodSample = 0;
+			wfData.push_back( fWf->at(s) );
+			wfDataQuality.push_back( isGoodSample );
+			if( foundFirstSample == 0 ){
+				firstSample = sampleNum;
+				foundFirstSample = 1;
+			}
+		}
+
+		fitResponse->addData(fEvent, isGoodEvent, evPulserStartSamples.at(eventNum)*SAMP_PERIOD, fNum, fStartSample*SAMP_PERIOD, firstSample, wfData, wfDataQuality, isGood);
 
 		if( 0 ){
-			std::cout << startSample << "\t" << avgPulserPeriod << std::endl;
+			std::cout << fStartSample << "\t" << avgPulserPeriod << std::endl;
 			tr_fit->Show();
 			drawPulse();
 		}
@@ -934,7 +959,7 @@ void Analyze::doChannelFit(unsigned int chan){
 
 	//fitResponse->doFit( (chAvgMaxValue - chAvgMean )/constant_ampToHeightFactor, chAvgRiseTime+0.4, chAvgMean, 106.871);
 	//fitResponse->doFit( (chAvgMaxValue - chBase )/constant_ampToHeightFactor, 2.2, chBase, chPulserPeriod);
-	fitResponse->doFit( (chAvgMaxValue - chBase )/constant_ampToHeightFactor, 2.2, chBase, avgPulserPeriod*SAMP_PERIOD);
+	fitResponse->doFit( (chAvgMaxValue - chBase )/constant_ampToHeightFactor, 2.2, chBase, avgPulserPeriod*SAMP_PERIOD, -0.68);
 
 	if( fitResponse->fitVals.size() < 6 || fitResponse->fitValErrs.size() < 6 )
 		return;
@@ -972,7 +997,7 @@ void Analyze::drawPulse(){
 	//load pulse into graph object, do NOT include stuck codes, convert sample number to time (us)
 	//tr_fit->Show();
 	gCh->Set(0);
-	for( int s = 0 ; s < fWf->size() ; s++ )
+	for( unsigned int s = 0 ; s < fWf->size() ; s++ )
 		gCh->SetPoint(gCh->GetN() , fSample + s , fWf->at(s) );
 		//gCh->SetPoint(gCh->GetN() , fSample + s , fWf->at(s) - chBase );
 	c0->Clear();
@@ -1018,11 +1043,11 @@ void Analyze::drawFit(){
 			int pulseNum = fitResponse->fitEventData->at(ev).pulseData.at(p).num;
 			std::vector<unsigned short> *pulseWf = &fitResponse->fitEventData->at(ev).pulseData.at(p).wf;
 
-			for( int s = 0 ; s < pulseWf->size() ; s++ )
+			for( unsigned int s = 0 ; s < pulseWf->size() ; s++ )
 				gCh->SetPoint( gCh->GetN(), pulseFirstSample + s , pulseWf->at(s) );
 
 			double startTime = fitResponse->fitVals.at(5+ev) + pulseNum*period + offset;
-			for( int s = 0 ; s < pulseWf->size() ; s++ ){
+			for( unsigned int s = 0 ; s < pulseWf->size() ; s++ ){
 				for(int step = 0 ; step < 10 ; step++){
 					double sample = pulseFirstSample + s + step/10.;
 					double time = sample*SAMP_PERIOD;
@@ -1089,7 +1114,7 @@ void Analyze::getAvgFitResidual(){
 			if( fitResponse->fitEventData->at(ev).pulseData.at(p).isGood == 0 )
 				continue;
 
-			int pulseEvent = fitResponse->fitEventData->at(ev).eventNumber;
+			//int pulseEvent = fitResponse->fitEventData->at(ev).eventNumber;
 			int pulseFirstSample = fitResponse->fitEventData->at(ev).pulseData.at(p).firstSample;
 			int pulseNum = fitResponse->fitEventData->at(ev).pulseData.at(p).num;
 			std::vector<unsigned short> *pulseWf = &fitResponse->fitEventData->at(ev).pulseData.at(p).wf;
@@ -1097,7 +1122,7 @@ void Analyze::getAvgFitResidual(){
 			double startTime = fitResponse->fitVals.at(5+ev) + pulseNum*period + offset;
 			double startSample = startTime/SAMP_PERIOD;
 
-			for( int s = 0 ; s < pulseWf->size() ; s++ ){
+			for( unsigned int s = 0 ; s < pulseWf->size() ; s++ ){
 				double sample = pulseFirstSample + s;
 				double time = sample*SAMP_PERIOD;
 				double fitVal = -10000;
@@ -1174,21 +1199,19 @@ void Analyze::getQRes(){
 	if( fitResponse->fitVals.size() < 6 || fitResponse->fitValErrs.size() < 6 )
 		return;
 
-	int numEvents = fitResponse->fitVals.size()-5;
+	unsigned int numEvents = fitResponse->fitVals.size()-5;
 	if( numEvents <= 0 )
 		return;
 
-	int currEvent = -1;
-	int eventNum = -1;
-	int firstNum = 0;
+	unsigned int currEvent = 0;
+	unsigned int eventNum = 0;
 	for(unsigned int entry = 0 ; entry<numEntries; entry++) { 
 		tr_fit->GetEntry(entry);
 		if( fEvent != currEvent ){
 			currEvent = fEvent;
 			eventNum++;
-			firstNum = fNum;
 		}
-		if(eventNum >= numEvents)	
+		if(eventNum >= numEvents)
 			break;
 
 		if( !getPulseStatus() )
@@ -1197,18 +1220,18 @@ void Analyze::getQRes(){
 		if( evPulserStartSamplesErrors.at(eventNum) > 0.1 ) 
 			continue;
 
-		doSinglePulseFit(eventNum, firstNum);
+		doSinglePulseFit(eventNum);
 	}
 
 	return;
 }
 
-void Analyze::doSinglePulseFit(unsigned int eventNum, unsigned int firstNum){
+void Analyze::doSinglePulseFit(unsigned int eventNum){
 
 	if( fitResponse->fitVals.size() < 6 || fitResponse->fitValErrs.size() < 6 )
 		return;
 
-	int numEvents = fitResponse->fitVals.size()-5;
+	unsigned int numEvents = fitResponse->fitVals.size()-5;
 	if( eventNum >= numEvents )
 		return;
 
@@ -1222,8 +1245,7 @@ void Analyze::doSinglePulseFit(unsigned int eventNum, unsigned int firstNum){
 
 	//double startTime = fitResponse->fitVals.at(5+eventNum) + fNum*period + offset;
 	//fitResponse_singlePulse->addData(fEvent, 1, fNum, startTime, fSample, *fWf, 1);
-	double startSample = fStartSample;
-	fitResponse_singlePulse->addData(fEvent, 1, evPulserStartSamples.at(eventNum)*SAMP_PERIOD, fNum, fStartSample*SAMP_PERIOD, fSample, *fWf, 1);
+	//fitResponse_singlePulse->addData(fEvent, 1, evPulserStartSamples.at(eventNum)*SAMP_PERIOD, fNum, fStartSample*SAMP_PERIOD, fSample, *fWf, 1);
 
 	//fix everything except pulse amplitude
 	fitResponse_singlePulse->fixFitVars.push_back(1);
@@ -1236,7 +1258,7 @@ void Analyze::doSinglePulseFit(unsigned int eventNum, unsigned int firstNum){
 	fitResponse_singlePulse->showOutput = 0;
 	fitResponse_singlePulse->setBaseFitRange( constant_baseFitRange );
 	fitResponse_singlePulse->setPulseFitRange( constant_pulseFitRange );
-	fitResponse_singlePulse->doFit( amp, shape, base, period);
+	fitResponse_singlePulse->doFit( amp, shape, base, period, offset);
 
 	pSinglePulseAmpVsChan->Fill(fChan, fitResponse_singlePulse->fitVals.at(0) );
 
@@ -1255,7 +1277,7 @@ void Analyze::drawFit_singlePulse(){
 
 	gCh->Set(0);
 	gFit->Set(0);
-	for(int s = 0 ; s < fWf->size() ; s++ ){
+	for(unsigned int s = 0 ; s < fWf->size() ; s++ ){
 		for(int step = 0 ; step < 10 ; step++){
 			double sample = fSample + s + step/10.;
 			double time = sample*SAMP_PERIOD;
@@ -1266,7 +1288,7 @@ void Analyze::drawFit_singlePulse(){
 		}
 	}
 
-	for( int s = 0 ; s < fWf->size() ; s++ )
+	for(unsigned int s = 0 ; s < fWf->size() ; s++ )
 		gCh->SetPoint( gCh->GetN(), fSample + s , fWf->at(s) );
 
 	if( 1 ){
