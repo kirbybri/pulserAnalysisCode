@@ -15,6 +15,7 @@ FeElecResponse *sig;
 double sampleErr;
 double baseFitRange;
 double pulseFitRange;
+double samplePeriod;
 
 struct Pulses{
     unsigned short num;

@@ -12,6 +12,7 @@ FitFeElecResponse_multiPulse::FitFeElecResponse_multiPulse(){
 	numPulses = 0;
 	baseFitRange = 100;//default, us
 	pulseFitRange = 6; //default, us
+	samplePeriod = 0.5; //default, us
 	fitEventData = &eventData;
 }
 
@@ -218,9 +219,9 @@ void calcLnL(double par[], double& result){
 			dataX = eventData[ev].pulseData[p].firstSample + s;
 	
 			//only allow fit to include certain part of pulse waveform
-			//if( dataX*SAMP_PERIOD < minFitTime )
+			//if( dataX*samplePeriod < minFitTime )
 			//	continue;
-			//if( dataX*SAMP_PERIOD > maxFitTime )
+			//if( dataX*samplePeriod > maxFitTime )
 			//	break;
 			if( eventData[ev].pulseData[p].wfQuality[s] == 0 )
 				continue;
@@ -228,7 +229,7 @@ void calcLnL(double par[], double& result){
 			dataY = eventData[ev].pulseData[p].wf[s];
 
 			//void getSignalValueFromVector(double time, double base, double pulseStart, double shapeTime, double amp,double& simVal);
-			sig->getSignalValueFromVector(dataX*SAMP_PERIOD, base, start, shape, amp,fitY);
+			sig->getSignalValueFromVector(dataX*samplePeriod, base, start, shape, amp,fitY);
 
 			//double y = (dataY - fitY)*(dataY - fitY)*norm - cumul;
 			//double t = diffSq + y;
@@ -238,8 +239,8 @@ void calcLnL(double par[], double& result){
 			diffSq = diffSq + (dataY - fitY)*(dataY - fitY)*norm; //gauss err assumed, noise is correlated but assume small
 
 			//std::cout << dataX << "\t" << dataY << "\t" << fitY << std::endl;
-			//gData->SetPoint(gData->GetN() , dataX*SAMP_PERIOD, dataY);
-			//gFit->SetPoint(gFit->GetN() , dataX*SAMP_PERIOD, fitY);
+			//gData->SetPoint(gData->GetN() , dataX*samplePeriod, dataY);
+			//gFit->SetPoint(gFit->GetN() , dataX*samplePeriod, fitY);
   		}
 		/*
 		cFit->Clear();
