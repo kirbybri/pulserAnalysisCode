@@ -33,7 +33,8 @@ namespace getpulsershape {
 
     void calculateAverageWaveform( std::vector<raw::RawDigit> const& rawDigitVector);
     void findPulses();
-    void processEventPulses( art::Event const& evt, std::vector<raw::RawDigit> const& rawDigitVector);
+    void checkRisingEdge(double threshold, int s, double samp, double sampNext);
+    void recordPulserSamples(art::Event const& evt);
     
   private:
 
