@@ -35,6 +35,8 @@ namespace getpulsershape {
     void findPulses();
     void checkRisingEdge(double threshold, int s, double samp, double sampNext);
     void recordPulserSamples(art::Event const& evt);
+    void processEventPulses( art::Event const& evt, std::vector<raw::RawDigit> const& rawDigitVector);
+    void processPulse(double pulseStartSample, raw::RawDigit const& rawDigit );
     
   private:
 
@@ -57,6 +59,7 @@ namespace getpulsershape {
     //Other variables
     TProfile *pWave;
     TH1I *hSamp;
+    TGraph *gCh;
     std::vector<double> pulseStartSamples;
   }; //end class Noise
 
@@ -95,6 +98,7 @@ namespace getpulsershape {
     //make generic histograms
     pWave = tfs->make<TProfile>("pWave","",numTicks,-0.5,numTicks-0.5);
     hSamp = tfs->make<TH1I>("hSamp","",maxCode-minCode,-minCode-0.5,maxCode-0.5);
+    gCh = tfs->make<TGraph>();
   }
 
   //-------------------------------------------------------------------
@@ -119,6 +123,9 @@ namespace getpulsershape {
 
     //record pulse times
     recordPulserSamples(evt);
+
+    //loop over channels, for each global pulse time save waveform section info
+    processEventPulses( evt, rawDigitVector );
 
     return;
   }//end analyze function
@@ -204,6 +211,45 @@ namespace getpulsershape {
 
     tPulserStartSamples->Fill();
     return;
+  }
+
+  //-------------------------------------------------------------------
+  void GetPulserShape::processEventPulses( art::Event const& evt, std::vector<raw::RawDigit> const& rawDigitVector){
+    const unsigned int n_channels = rawDigitVector.size();
+    if( n_channels == 0 )
+      return;
+
+    //loop over channels, loop over pulser signal in each channel
+    for(unsigned int ich=0; ich<n_channels; ich++){
+      const size_t n_samp = rawDigitVector.at(ich).NADC();
+      if( n_samp == 0 ) 
+        continue;
+
+      //loop over pulse times
+      for(unsigned int p = 0 ; p < pulseStartSamples.size() ; p++){
+        processPulse( evt, p, pulseStartSamples.at(p), rawDigitVector.at(ich) );
+        if( p > fMaxNumPulse )
+          break;
+      }//end loop over pulse times
+    }//end loop over channels
+  }
+
+  //-------------------------------------------------------------------
+  void GetPulserShape::processPulse(double pulseStartSample, raw::RawDigit const& rawDigit ){
+    const size_t n_samp = rawDigit.NADC();
+    unsigned int sampleNum = (unsigned int) TMath::FloorNint( pulseStartSample );
+    if ( sampleNum < fPedRange + fPreRange + 10 || sampleNum >= n_samp - fPostRange - 10 )
+      return;
+
+    unsigned int chan = rawDigit.Channel();
+    unsigned int firstSample = sampleNum - fPreRange; //index of first sample in save waveform
+    
+    for(unsigned int s = firstSample ; s < firstSample + fPreRange + fPostRange ; s++){
+      if( s >= rawDigit.NADC() )
+        break;
+      if( chan == 2400 )
+        gCh->SetPoint(gCh->GetN(), s - pulseStartSample , rawDigit.ADC(s) );
+    }
   }
 
   DEFINE_ART_MODULE(GetPulserShape)
