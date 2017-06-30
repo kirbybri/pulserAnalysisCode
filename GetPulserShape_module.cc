@@ -7,6 +7,7 @@
 #include <TH1I.h>
 #include <TProfile.h>
 #include <TTree.h>
+#include <TGraph.h>
 #include <TMath.h>
 
 #include "art/Framework/Core/ModuleMacros.h" 
@@ -227,7 +228,7 @@ namespace getpulsershape {
 
       //loop over pulse times
       for(unsigned int p = 0 ; p < pulseStartSamples.size() ; p++){
-        processPulse( evt, p, pulseStartSamples.at(p), rawDigitVector.at(ich) );
+        processPulse( pulseStartSamples.at(p), rawDigitVector.at(ich) );
         if( p > fMaxNumPulse )
           break;
       }//end loop over pulse times
