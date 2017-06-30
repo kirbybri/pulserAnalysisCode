@@ -196,7 +196,6 @@ namespace getpulsershape {
     fPulserStartSamples.clear();
 
     //record pulser times, stop if max number of pulses per event exceeded
-    unsigned int numPulse = 0;
     for(unsigned int p = 0 ; p < pulseStartSamples.size() ; p++){
       fPulserStartSamples.push_back( pulseStartSamples.at(p) );
       if( p > fMaxNumPulse )
