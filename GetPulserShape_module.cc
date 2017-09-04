@@ -5,7 +5,7 @@
 #include <vector>
 #include <iostream>
 #include <TH1I.h>
-#include <TProfile.h>
+#include <TProfile2D.h>
 #include <TTree.h>
 #include <TGraph.h>
 #include <TMath.h>
@@ -59,8 +59,8 @@ namespace getpulsershape {
 
     //Other variables
     TProfile *pWave;
+    TProfile2D *pWaveVsCh;
     TH1I *hSamp;
-    TGraph *gCh;
     std::vector<double> pulseStartSamples;
   }; //end class Noise
 
@@ -99,7 +99,7 @@ namespace getpulsershape {
     //make generic histograms
     pWave = tfs->make<TProfile>("pWave","",numTicks,-0.5,numTicks-0.5);
     hSamp = tfs->make<TH1I>("hSamp","",maxCode-minCode,-minCode-0.5,maxCode-0.5);
-    gCh = tfs->make<TGraph>();
+    pWaveVsCh = tfs->make<TProfile2D>("pWaveVsCh","",numChan,-0.5,numChan-0.5,500,-10,40);
   }
 
   //-------------------------------------------------------------------
@@ -248,8 +248,7 @@ namespace getpulsershape {
     for(unsigned int s = firstSample ; s < firstSample + fPreRange + fPostRange ; s++){
       if( s >= rawDigit.NADC() )
         break;
-      if( chan == 2400 )
-        gCh->SetPoint(gCh->GetN(), s - pulseStartSample , rawDigit.ADC(s) );
+      pWaveVsCh->Fill(chan,s-pulseStartSample,rawDigit.ADC(s));
     }
   }
 
