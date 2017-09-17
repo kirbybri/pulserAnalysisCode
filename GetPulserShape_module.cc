@@ -60,6 +60,8 @@ namespace getpulsershape {
     //Other variables
     TProfile *pWave;
     TProfile2D *pWaveVsCh;
+    TProfile *pHeightVsCh;
+    TH2S* hChSampVsTick[8256];
     TH1I *hSamp;
     std::vector<double> pulseStartSamples;
   }; //end class Noise
@@ -99,7 +101,13 @@ namespace getpulsershape {
     //make generic histograms
     pWave = tfs->make<TProfile>("pWave","",numTicks,-0.5,numTicks-0.5);
     hSamp = tfs->make<TH1I>("hSamp","",maxCode-minCode,-minCode-0.5,maxCode-0.5);
-    pWaveVsCh = tfs->make<TProfile2D>("pWaveVsCh","",numChan,-0.5,numChan-0.5,500,-10,40);
+    pWaveVsCh = tfs->make<TProfile2D>("pWaveVsCh","",numChan,-0.5,numChan-0.5,1500,-10,140);
+    pHeightVsCh = tfs->make<TProfile>("pHeightVsCh","",numChan,-0.5,numChan-0.5);
+
+    for(unsigned int ch = 0 ; ch < numChan ; ch++ ){
+	std::string title = "hChSampVsTick_" + std::to_string( ch );
+    	hChSampVsTick[ch] = tfs->make<TH2S>(title.c_str(),title.c_str(),200,-5,15,1000,-100-0.5,900-0.5);
+    }
   }
 
   //-------------------------------------------------------------------
@@ -244,11 +252,48 @@ namespace getpulsershape {
 
     unsigned int chan = rawDigit.Channel();
     unsigned int firstSample = sampleNum - fPreRange; //index of first sample in save waveform
+
+    //if( chan != 2400 )
+    //  return;
     
+    //measure baseline, peak height to avoid chirping
+    int count = 0;
+    double baseMean = 0;
+    int maxValue = 0;
+    for(unsigned int s = firstSample ; s < firstSample + fPreRange + fPostRange ; s++){
+      if( s >= rawDigit.NADC() )
+        break;
+      double startSample = s - pulseStartSample;
+      if( startSample > -10 && startSample < -5 ){
+        count++;
+        baseMean = baseMean + rawDigit.ADC(s);
+      }
+      if( startSample > 0 && startSample < 5 ){
+        if( rawDigit.ADC(s) > maxValue )
+          maxValue = rawDigit.ADC(s);
+      }
+    }
+    if( count < 2 )
+      return;
+    baseMean = baseMean / (double) count;
+    double pulseHeight = maxValue - baseMean;
+    pHeightVsCh->Fill(chan,pulseHeight);
+
+    //PULSE HEIGHT CUT
+    if( pulseHeight < 250 )
+      return;
+
+    double constBase = 2045;
+    if( chan >= 4800 )
+      constBase = 468;
+    
+    //record average
     for(unsigned int s = firstSample ; s < firstSample + fPreRange + fPostRange ; s++){
       if( s >= rawDigit.NADC() )
         break;
       pWaveVsCh->Fill(chan,s-pulseStartSample,rawDigit.ADC(s));
+      hChSampVsTick[chan]->Fill(s-pulseStartSample,rawDigit.ADC(s) - constBase);
+      //std::cout << s-pulseStartSample << "\t" << rawDigit.ADC(s) << std::endl;
     }
   }
 
