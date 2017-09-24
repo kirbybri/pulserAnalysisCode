@@ -99,7 +99,6 @@ namespace getpulsershape {
     tPulserStartSamples->Branch("subrun", &fSubrun, "subrun/s");
     tPulserStartSamples->Branch("event", &fEvent, "event/i");
     tPulserStartSamples->Branch("pulserStartSamples", "vector<double>", &fPulserStartSamples);
-maxCode
     //make generic histograms
     pWave = tfs->make<TProfile>("pWave","",numTicks,-0.5,numTicks-0.5);
     hSamp = tfs->make<TH1I>("hSamp","",maxCode-minCode,-minCode-0.5,maxCode-0.5);
