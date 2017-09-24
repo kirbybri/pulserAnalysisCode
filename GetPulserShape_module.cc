@@ -53,6 +53,7 @@ namespace getpulsershape {
     const int minCode = -5000;
     const int maxCode = 5000;
     const int minThresholdVal = 50;
+    const int minPulseHeight = 250;
     TTree *tPulserStartSamples;
     unsigned int fRun, fSubrun, fEvent;
     std::vector<double> fPulserStartSamples;
@@ -63,6 +64,7 @@ namespace getpulsershape {
     TProfile *pHeightVsCh;
     TH2S* hChSampVsTick[8256];
     TH1I *hSamp;
+    TH1I *hThreshold;
     std::vector<double> pulseStartSamples;
   }; //end class Noise
 
@@ -97,10 +99,11 @@ namespace getpulsershape {
     tPulserStartSamples->Branch("subrun", &fSubrun, "subrun/s");
     tPulserStartSamples->Branch("event", &fEvent, "event/i");
     tPulserStartSamples->Branch("pulserStartSamples", "vector<double>", &fPulserStartSamples);
-
+maxCode
     //make generic histograms
     pWave = tfs->make<TProfile>("pWave","",numTicks,-0.5,numTicks-0.5);
     hSamp = tfs->make<TH1I>("hSamp","",maxCode-minCode,-minCode-0.5,maxCode-0.5);
+    hThreshold = tfs->make<TH1I>("hThreshold","",4095,0-0.5,4095-0.5);
     pWaveVsCh = tfs->make<TProfile2D>("pWaveVsCh","",numChan,-0.5,numChan-0.5,1500,-10,140);
     pHeightVsCh = tfs->make<TProfile>("pHeightVsCh","",numChan,-0.5,numChan-0.5);
 
@@ -177,6 +180,7 @@ namespace getpulsershape {
     if( threshold < minThresholdVal )
       threshold = minThresholdVal;
     threshold = mean + threshold;
+    hThreshold->Fill(threshold);
 
     //identify unbiased pulser times
     pulseStartSamples.clear();
@@ -236,9 +240,9 @@ namespace getpulsershape {
 
       //loop over pulse times
       for(unsigned int p = 0 ; p < pulseStartSamples.size() ; p++){
-        processPulse( pulseStartSamples.at(p), rawDigitVector.at(ich) );
         if( p > fMaxNumPulse )
           break;
+        processPulse( pulseStartSamples.at(p), rawDigitVector.at(ich) );
       }//end loop over pulse times
     }//end loop over channels
   }
@@ -252,48 +256,39 @@ namespace getpulsershape {
 
     unsigned int chan = rawDigit.Channel();
     unsigned int firstSample = sampleNum - fPreRange; //index of first sample in save waveform
-
-    //if( chan != 2400 )
-    //  return;
     
-    //measure baseline, peak height to avoid chirping
-    int count = 0;
-    double baseMean = 0;
-    int maxValue = 0;
+    //do simple peak height measurement
+    int maxValue = -1;
     for(unsigned int s = firstSample ; s < firstSample + fPreRange + fPostRange ; s++){
       if( s >= rawDigit.NADC() )
         break;
       double startSample = s - pulseStartSample;
-      if( startSample > -10 && startSample < -5 ){
-        count++;
-        baseMean = baseMean + rawDigit.ADC(s);
-      }
-      if( startSample > 0 && startSample < 5 ){
+      if( startSample > 0 && startSample < 6.5 ){
         if( rawDigit.ADC(s) > maxValue )
           maxValue = rawDigit.ADC(s);
       }
     }
-    if( count < 2 )
-      return;
-    baseMean = baseMean / (double) count;
-    double pulseHeight = maxValue - baseMean;
-    pHeightVsCh->Fill(chan,pulseHeight);
 
-    //PULSE HEIGHT CUT
-    if( pulseHeight < 250 )
-      return;
-
+    //assume nominal baseline value
     double constBase = 2045;
     if( chan >= 4800 )
       constBase = 468;
+
+    //simple pulse height calculation
+    double pulseHeight = maxValue - constBase;
+    pHeightVsCh->Fill(chan,pulseHeight);
+
+    //PULSE HEIGHT CUT
+    if( pulseHeight < minPulseHeight ) //make a fcl parameter
+      return;
     
     //record average
     for(unsigned int s = firstSample ; s < firstSample + fPreRange + fPostRange ; s++){
       if( s >= rawDigit.NADC() )
         break;
-      pWaveVsCh->Fill(chan,s-pulseStartSample,rawDigit.ADC(s));
-      hChSampVsTick[chan]->Fill(s-pulseStartSample,rawDigit.ADC(s) - constBase);
-      //std::cout << s-pulseStartSample << "\t" << rawDigit.ADC(s) << std::endl;
+      double startSample = s - pulseStartSample;
+      pWaveVsCh->Fill(chan,startSample,rawDigit.ADC(s));
+      hChSampVsTick[chan]->Fill(startSample,rawDigit.ADC(s) - constBase);
     }
   }
 
