@@ -104,7 +104,7 @@ namespace getpulsershape {
     pWave = tfs->make<TProfile>("pWave","",numTicks,-0.5,numTicks-0.5);
     hSamp = tfs->make<TH1I>("hSamp","",maxCode-minCode,-minCode-0.5,maxCode-0.5);
     hThreshold = tfs->make<TH1I>("hThreshold","",4095,0-0.5,4095-0.5);
-    pWaveVsCh = tfs->make<TProfile2D>("pWaveVsCh","",numChan,-0.5,numChan-0.5,1500,-10,140);
+    pWaveVsCh = tfs->make<TProfile2D>("pWaveVsCh","",numChan,-0.5,numChan-0.5,2100,-10,200);
     pHeightVsCh = tfs->make<TProfile>("pHeightVsCh","",numChan,-0.5,numChan-0.5);
     gCh = tfs->make<TGraph>();
 
