@@ -66,6 +66,7 @@ namespace getpulsershape {
     TH1I *hSamp;
     TH1I *hThreshold;
     std::vector<double> pulseStartSamples;
+    TGraph *gCh;
   }; //end class Noise
 
 
@@ -105,6 +106,7 @@ namespace getpulsershape {
     hThreshold = tfs->make<TH1I>("hThreshold","",4095,0-0.5,4095-0.5);
     pWaveVsCh = tfs->make<TProfile2D>("pWaveVsCh","",numChan,-0.5,numChan-0.5,1500,-10,140);
     pHeightVsCh = tfs->make<TProfile>("pHeightVsCh","",numChan,-0.5,numChan-0.5);
+    gCh = tfs->make<TGraph>();
 
     for(unsigned int ch = 0 ; ch < numChan ; ch++ ){
 	std::string title = "hChSampVsTick_" + std::to_string( ch );
@@ -118,7 +120,7 @@ namespace getpulsershape {
     art::Handle< std::vector<raw::RawDigit> > rawDigitHandle;
     evt.getByLabel(fRawDigitModuleLabel,rawDigitHandle);
     std::vector<raw::RawDigit> const& rawDigitVector(*rawDigitHandle);
-
+	
     //check that event variables are reasonable
     if( evt.subRun() < fMinSubRun || evt.subRun() > fMaxSubRun)
       return;
@@ -131,6 +133,8 @@ namespace getpulsershape {
 
     //find pulser signal times
     findPulses();
+
+    //analyze pulser times
 
     //record pulse times
     recordPulserSamples(evt);
