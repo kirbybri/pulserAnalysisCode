@@ -46,6 +46,7 @@ namespace getpulsershape {
     std::string fRawDigitModuleLabel;
     unsigned int fMinSubRun, fMaxSubRun;
     unsigned int fPedRange, fPreRange, fPostRange, fMaxNumPulse;
+    double fThreshold;
 
     //Tree variables
     const unsigned int numChan = 8256;
@@ -88,6 +89,7 @@ namespace getpulsershape {
     fPreRange             	= pset.get<unsigned int>("preRange");
     fPostRange             	= pset.get<unsigned int>("postRange");
     fMaxNumPulse            	= pset.get<unsigned int>("maxNumPulse");
+    fThreshold            	= pset.get<double>("threshold");
   }
 
   //-------------------------------------------------------------------
@@ -136,6 +138,8 @@ namespace getpulsershape {
 
     //analyze pulser times
 
+    return;
+
     //record pulse times
     recordPulserSamples(evt);
 
@@ -183,6 +187,7 @@ namespace getpulsershape {
     if( threshold < minThresholdVal )
       threshold = minThresholdVal;
     threshold = mean + threshold;
+    //fThreshold = 250.;
     hThreshold->Fill(threshold);
 
     //identify unbiased pulser times
