@@ -66,6 +66,7 @@ namespace getpulsershape {
     TH2S* hChSampVsTick[8256];
     TH1I *hSamp;
     TH1I *hThreshold;
+    TH1I *hMean;
     std::vector<double> pulseStartSamples;
     TGraph *gCh;
   }; //end class Noise
@@ -105,6 +106,7 @@ namespace getpulsershape {
     //make generic histograms
     pWave = tfs->make<TProfile>("pWave","",numTicks,-0.5,numTicks-0.5);
     hSamp = tfs->make<TH1I>("hSamp","",maxCode-minCode,-minCode-0.5,maxCode-0.5);
+    hMean = tfs->make<TH1I>("hMean","",4095,0-0.5,4095-0.5);
     hThreshold = tfs->make<TH1I>("hThreshold","",4095,0-0.5,4095-0.5);
     pWaveVsCh = tfs->make<TProfile2D>("pWaveVsCh","",numChan,-0.5,numChan-0.5,2100,-10,200);
     pHeightVsCh = tfs->make<TProfile>("pHeightVsCh","",numChan,-0.5,numChan-0.5);
@@ -181,13 +183,15 @@ namespace getpulsershape {
     double mean = double( hSamp->GetBinCenter( hSamp->GetMaximumBin() ) );
     if( mean <= 0 || mean >= maxCode )
       return;
+    hMean->Fill( mean );
 
     //calculate pulser signal threshold
     double threshold = (maxVal - mean)/2.;
     if( threshold < minThresholdVal )
       threshold = minThresholdVal;
-    threshold = mean + threshold;
+    //threshold = mean + threshold;
     //fThreshold = 250.;
+    threshold = mean + fThreshold;
     hThreshold->Fill(threshold);
 
     //identify unbiased pulser times
