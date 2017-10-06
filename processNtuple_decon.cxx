@@ -40,6 +40,7 @@ class Analyze {
 	void analyzeChannel();
 	void simChannel();
 	void deconChannel();
+	void copyChannel();
 
 	TFile* inputFile;
 	TFile *statusfile;
@@ -47,7 +48,8 @@ class Analyze {
 
 	//ROI tr_rawdata variables
 	TTree *tr_rawdata;
-	std::vector<short> *adc_v = 0;
+	//std::vector<short> *adc_v = 0;
+        std::vector<double> *adc_v = 0;
 	unsigned short run,subrun, event, chan;
 
 	//Constants
@@ -71,6 +73,7 @@ class Analyze {
 	TGraph *gFFT_nominal_phase;
 	TGraph *gCh_corr;
 	TGraph *gNominal;
+	TGraph *gFFT_ratio;
 
 	FeElecResponse *elecRespSig;
 
@@ -119,17 +122,16 @@ Analyze::Analyze(std::string inputFileName){
   	tr_rawdata->SetBranchAddress("adc_v",&adc_v);
 
 	//open response file
-        TFile *respFile = new TFile("responseWaveforms.root");
+        TFile *respFile = new TFile("20171006_responseWaveforms.root");
 	if (respFile->IsZombie()) {
 		std::cout << "Error opening response file" << std::endl;
 		return;
 	}
-
 	if( !respFile ){
 		std::cout << "Error opening response file" << std::endl;
 		return;
 	}
-	pCorrWaveVsCh = (TH2D*) respFile->Get("pCorrWaveVsCh");
+	pCorrWaveVsCh = (TH2D*) respFile->Get("pResponseVsCh");
 
 	//make output file
   	std::string outputFileName = "output_processNtuple_decon_" + inputFileName;
@@ -147,6 +149,7 @@ Analyze::Analyze(std::string inputFileName){
 	gFFT_phase = new TGraph();
 	gFFT_nominal_mag = new TGraph();
 	gFFT_nominal_phase = new TGraph();
+	gFFT_ratio = new TGraph();
 	gCh_corr = new TGraph();
 	gNominal = new TGraph();
 
@@ -178,14 +181,11 @@ void Analyze::doAnalysis(){
 	for(Long64_t entry(0); entry<nEntries; ++entry) { 
 		tr_rawdata->GetEntry(entry);
 
+		//if( chan < 8000 ) continue;
+		std::cout << chan << std::endl;
+
 		//try to get response waveform
 		getResponseWaveform();
-		if( respWf->GetEntries() == 0 )
-			continue;
-
-
-
-		std::cout << entry << "\t" << nEntries << std::endl;
 
 		//analyze current entry
     		analyzeChannel();
@@ -251,15 +251,18 @@ void Analyze::SetupFilters()
 
 void Analyze::SetupNominalResponse()
 {
-	//TH1F *currentHist = new TH1F("currentHist","",maxTicks,-0.5,maxTicks-0.5);
-	TH1F *currentHist = new TH1F("currentHist","",maxNumBin,-0.5,maxNumBin-0.5);
+	TH1F *currentHist = new TH1F("currentHist","",maxTicks,-0.5,maxTicks-0.5);
+	//TH1F *currentHist = new TH1F("currentHist","",maxNumBin,-0.5,maxNumBin-0.5);
+	//TH1F *currentHist = new TH1F("currentHist","",2500,-0.5,2500-0.5);
 
 	gNominal->Set(0);
 	for(int i = 0 ; i < currentHist->GetNbinsX() ; i++ ){
-		double time = i*0.050; //50ns steps, like pulser response waveforms
+		double sample = i;
+		double time = i*0.500; //500ns steps ie 2MHz
+		//double time = i*0.05; //1ns steps ie 1000MHz
 		double base = 0;
 		//double pulseStart = 0; //us
-		double pulseStart = 3.6;
+		double pulseStart = 0.5;
 		double shapeTime = 2.2; //nominal shaping time
 		double amp = 1./191.6/0.0988165; //amp factor is not pulse height
 		
@@ -267,7 +270,7 @@ void Analyze::SetupNominalResponse()
 		elecRespSig->getSignalValue(time, base, pulseStart, shapeTime, amp, simVal);
 
 		//gNominal->SetPoint(gNominal->GetN(),7.2+i*0.1,simVal);
-		gNominal->SetPoint(gNominal->GetN(),i*0.1,simVal);
+		gNominal->SetPoint(gNominal->GetN(),i,simVal);
 		currentHist->SetBinContent(i+1, simVal );
 	}
 
@@ -276,12 +279,14 @@ void Analyze::SetupNominalResponse()
   	TH1 *hp = 0;
         hp = currentHist->FFT(0,"PH");
 
-	//nominal waveform period = 50ns
+	//nominal waveform period
 	int numBins = hm->GetNbinsX();
 	for(int bin = 0 ; bin < numBins ; bin++ ){
 		//hm->GetBinContent();
     		Double_t freq;
-		freq = ((Double_t) bin)/(1.0*numBins)*20.0;
+		//freq = ((Double_t) bin)/(1.0*numBins)*20.0; //20MHz, matches response waveforms
+		freq = ((Double_t) bin)/(1.0*numBins)*2.0; //2MHz, matches sampling rate
+		//freq = ((Double_t) bin)/(1.0*numBins)*100.0; //100MHz
 		gFFT_nominal_mag->SetPoint(gFFT_nominal_mag->GetN(),freq,hm->GetBinContent(bin+1));
 		gFFT_nominal_phase->SetPoint(gFFT_nominal_phase->GetN(),freq,hp->GetBinContent(bin+1));
 	}
@@ -301,15 +306,26 @@ void Analyze::getResponseWaveform(){
 	gResp->Set(0);
 	gFFT_mag->Set(0);
 	gFFT_phase->Set(0);
-	if( respWf->GetEntries() == 0 )
-		return;
-
-	//TH1F *currentHist = new TH1F("currentHist","",maxTicks,-0.5,maxTicks-0.5);
-	TH1F *currentHist = new TH1F("currentHist","",maxNumBin,-0.5,maxNumBin-0.5);
+	//add response waveform to TGraph
 	for( int bin = 0 ; bin < respWf->GetNbinsX() ; bin++ )
-		currentHist->SetBinContent(bin+1, respWf->GetBinContent(bin+1)/10000. );
-	for( int bin = 0 ; bin < currentHist->GetNbinsX() ; bin++ )
-		gResp->SetPoint( gResp->GetN() , bin*0.1, currentHist->GetBinContent(bin+1) );
+		gResp->SetPoint( gResp->GetN() , respWf->GetBinCenter(bin+1) , respWf->GetBinContent(bin+1) );
+
+	//TH1F *currentHist = new TH1F("currentHist","",respWf->GetNbinsX(),-0.5,respWf->GetNbinsX()-0.5);
+	TH1F *currentHist = new TH1F("currentHist","",maxTicks,-0.5,maxTicks-0.5);
+	//TH1F *currentHist = new TH1F("currentHist","",maxNumBin,-0.5,maxNumBin-0.5);
+	//TH1F *currentHist = new TH1F("currentHist","",2500,-0.5,2500-0.5);
+	for( int bin = 0 ; bin < respWf->GetNbinsX() ; bin++ ){
+		//if( bin > currentHist->GetNbinsX() ) continue;
+		//currentHist->SetBinContent(bin+1, respWf->GetBinContent(bin+1) );
+		double sampleNumber =  bin - 4.;
+		double sampleValue = 0.;
+		if( sampleNumber < respWf->GetBinCenter( respWf->GetNbinsX() ) )
+			sampleValue = gResp->Eval(sampleNumber);
+
+		currentHist->SetBinContent(bin+1, sampleValue );
+	}
+	//for( int bin = 0 ; bin < currentHist->GetNbinsX() ; bin++ )
+	//	gResp->SetPoint( gResp->GetN() , bin*0.1, currentHist->GetBinContent(bin+1) );
 
 	TH1 *hm = 0;
         hm = currentHist->FFT(0,"MAG");
@@ -321,7 +337,8 @@ void Analyze::getResponseWaveform(){
 	for(int bin = 0 ; bin < numBins ; bin++ ){
 		//hm->GetBinContent();
     		Double_t freq;
-		freq = ((Double_t) bin)/(1.0*numBins)*20.0;
+		//freq = ((Double_t) bin)/(1.0*numBins)*20.0;
+		freq = ((Double_t) bin)/(1.0*numBins)*2.0;
 		gFFT_mag->SetPoint(gFFT_mag->GetN(),freq,hm->GetBinContent(bin+1));
 		gFFT_phase->SetPoint(gFFT_phase->GetN(),freq,hp->GetBinContent(bin+1));
 	}
@@ -362,25 +379,29 @@ void Analyze::analyzeChannel(){
 	hRmsVsChan->Fill(chan, rms);
 	pRmsVsChan->Fill(chan, rms);
 
+	double constBase = 2045;
+	if( chan >= 4800 )
+		constBase = 468;
+
 	gCh->Set(0);
 	for( int s = 0 ; s < adc_v->size() ; s++ )
-		gCh->SetPoint(gCh->GetN() , s , adc_v->at(s) );
+		gCh->SetPoint(gCh->GetN() , s , adc_v->at(s) - constBase );
 }
 
 void Analyze::simChannel(){
 	if( gResp->GetN() == 0 )
 		return;
 
-	double pulseSample = 1001; //us
+	double pulseSample = 251; //us
 	double pulseQ = 10000.; //e-
-	double base = 432;
+	double base = 0;
 
 	gCh->Set(0);
 	for( int s = 0 ; s < maxTicks ; s++ ){
 		double time = s*0.5;
 		double sampleVal = base;
 
-		if( s - pulseSample > -10 && s - pulseSample < 140 ){
+		if( s - pulseSample > -10 && s - pulseSample < 200 ){
 			sampleVal += pulseQ*gResp->Eval( s - pulseSample  );
 			//std::cout << s << "\t" <<  pulseQ*gResp->Eval( s - pulseSample ) << std::endl;
 		}
@@ -399,6 +420,18 @@ void Analyze::simChannel(){
 	char ct;
 	std::cin >> ct;
 	*/
+}
+
+void Analyze::copyChannel(){
+	if( gCh->GetN() == 0 )
+		return;
+	Int_t numBins = gCh->GetN();
+	for(Int_t i = 0; i < numBins; i++)
+  	{
+    		double dataX,dataY;
+		gCh->GetPoint(i,dataX,dataY);
+		hCorrVsChan->SetBinContent(chan+1,i+1,dataY);
+  	}
 }
 
 void Analyze::deconChannel(){
@@ -436,6 +469,7 @@ void Analyze::deconChannel(){
   	if( chan >= 4800 )
 		filter = fFilterW;
 
+	gFFT_ratio->Set(0);
   	for(Int_t i = 0; i < numBins; i++)
   	{
     		Double_t freq;
@@ -462,6 +496,7 @@ void Analyze::deconChannel(){
 			std::cout << "HERE" << std::endl;
 			continue; //bad, should not happen
 		}
+		gFFT_ratio->SetPoint(gFFT_ratio->GetN(),gFFT_ratio->GetN(),nominalMag/respMag);
 
 		//do nothing
     		//Double_t rho = hm->GetBinContent(i+1)*filterVal;
@@ -504,13 +539,14 @@ void Analyze::deconChannel(){
 		gCh_corr->SetPoint(gCh_corr->GetN(),i,newHist->GetBinContent(i+1) );
 		hCorrVsChan->SetBinContent(chan+1,i+1,newHist->GetBinContent(i+1));
   	}
-
+	
 	//draw result
 	if(0){
 	char name[200];
 	memset(name,0,sizeof(char)*100 );
         sprintf(name,"Waveform Channel # %.5i",chan);
 
+	/*
 	c0->Clear();
 	c0->Divide(1,3);
 	c0->cd(1);
@@ -531,9 +567,31 @@ void Analyze::deconChannel(){
 	gCh_corr->GetXaxis()->SetRangeUser(0,500);
 	gCh_corr->Draw("ALP");
 	c0->Update();
+	*/
+	c0->Clear();
+	//c0->Divide(1,2);
+	//c0->cd(1);
+	//gCh->SetTitle("Original Waveform");
+	gCh->GetXaxis()->SetRangeUser(1140,1190);
+	gCh_corr->GetXaxis()->SetRangeUser(1140,1190);
+	//gCh->GetYaxis()->SetRangeUser(-20,20);
+	gCh_corr->GetYaxis()->SetRangeUser(-200,800);
+	gCh_corr->SetLineColor(kRed);
+	gCh_corr->Draw("AL");
+	gCh->Draw("LP");
+	
+	//c0->cd(2);
+	//gCh_corr->SetTitle("Corrected Waveform");
+	//gCh_corr->GetXaxis()->SetRangeUser(1140,1190);
+	//gCh_corr->GetYaxis()->SetRangeUser(-200,800);
+	//gCh_corr->Draw("ALP");
+	//c0->cd(3);
+	//gFFT_ratio->SetTitle("FFT Magnitude Nominal / Correction");
+	//gFFT_ratio->Draw("ALP");
+	c0->Update();
 
-	char ct;
-	std::cin >> ct;
+	//char ct;
+	//std::cin >> ct;
 	}
 
 	delete currentHist;
